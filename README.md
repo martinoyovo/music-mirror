@@ -4,6 +4,16 @@ Music Mirror is a mobile-first Spotify listening dashboard built with Next.js, T
 
 It is designed to feel closer to WHOOP or Apple Health than a traditional music player. The app focuses on lightweight listening insights, not playback controls.
 
+## Product Preview
+
+Top of dashboard:
+
+![Music Mirror dashboard top](public/readme/dashboard-top.png)
+
+Lower dashboard sections:
+
+![Music Mirror dashboard bottom](public/readme/dashboard-bottom.png)
+
 ## What It Does Today
 
 Music Mirror currently shows:
