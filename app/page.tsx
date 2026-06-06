@@ -10,7 +10,6 @@ import {
   Clock3,
   Headphones,
   HeartPulse,
-  LoaderCircle,
   LogOut,
   Moon,
   Pause,
@@ -43,19 +42,9 @@ type ReflectionNotice = {
   code: string;
   message: string;
 };
-type RangeSelection = {
+type TodayWindow = {
   end: Date;
-  includesToday: boolean;
-  key: string;
   label: string;
-  start: Date;
-};
-type DaySelection = {
-  dateKey: string;
-  end: Date;
-  isToday: boolean;
-  label: string;
-  shortLabel: string;
   start: Date;
 };
 
@@ -72,11 +61,9 @@ function classNames(...classes: Array<string | false | null | undefined>) {
 export default function Home() {
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [dashboard, setDashboard] = useState<DashboardData>(emptyDashboard);
+  const [dataNotice, setDataNotice] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
-  const [isDayRefreshing, setIsDayRefreshing] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
-  const [selectedDayKey, setSelectedDayKey] = useState(() => toDateKey(new Date()));
   const [reflectionNotice, setReflectionNotice] = useState<ReflectionNotice | null>(null);
   const authStateRef = useRef<AuthState>("checking");
   const currentlyPlayingRef = useRef<SpotifyCurrentlyPlaying | null>(null);
@@ -89,12 +76,7 @@ export default function Home() {
 
   const isBusy = authState === "checking" || authState === "loading";
   const isConnected = authState === "connected";
-  const selectedRange = useMemo(() => buildLastSevenDaysRange(), []);
-  const dayOptions = useMemo(() => buildDayOptions(selectedRange), [selectedRange]);
-  const selectedDay = useMemo(
-    () => getSelectedDay(dayOptions, selectedDayKey),
-    [dayOptions, selectedDayKey],
-  );
+  const todayWindow = useMemo(() => buildTodayWindow(), []);
 
   useEffect(() => {
     authStateRef.current = authState;
@@ -104,22 +86,13 @@ export default function Home() {
     async ({
       forceFullSync = false,
       refreshReflection = false,
-      showDayLoading = false,
       showLoading = false,
     }: {
       forceFullSync?: boolean;
       refreshReflection?: boolean;
-      showDayLoading?: boolean;
       showLoading?: boolean;
     } = {}) => {
-      if (showDayLoading) {
-        setIsDayRefreshing(true);
-      }
-
       if (syncInFlightRef.current) {
-        if (showDayLoading) {
-          setIsDayRefreshing(false);
-        }
         return;
       }
 
@@ -140,24 +113,20 @@ export default function Home() {
         }
 
         const now = Date.now();
-        const requestedEndMs = Math.min(selectedRange.end.getTime(), now);
-        const selectedRangeDays = Math.max(
-          1,
-          Math.ceil((requestedEndMs - selectedRange.start.getTime()) / 86_400_000),
-        );
-        const cachedRangeItems = filterRecentlyPlayedItemsForRange(
+        const requestedEndMs = Math.min(todayWindow.end.getTime(), now);
+        const cachedTodayItems = filterRecentlyPlayedItemsForRange(
           recentTracksRef.current,
-          selectedRange.start.getTime(),
+          todayWindow.start.getTime(),
           requestedEndMs,
         );
-        const cacheCoversRange = cachedRangeItems.length > 0 && rangeStartsBeforeOldestItem(
-          cachedRangeItems,
-          selectedRange.start.getTime(),
+        const cacheCoversToday = cachedTodayItems.length > 0 && rangeStartsBeforeOldestItem(
+          cachedTodayItems,
+          todayWindow.start.getTime(),
         );
         const shouldRefreshRecent =
           recentTracksRef.current.length === 0 ||
-          (forceFullSync && !cacheCoversRange) ||
-          (selectedRange.includesToday && now - lastRecentSyncAtRef.current >= RECENTLY_PLAYED_POLL_MS);
+          (forceFullSync && !cacheCoversToday) ||
+          now - lastRecentSyncAtRef.current >= RECENTLY_PLAYED_POLL_MS;
         const profilePromise = profileRef.current
           ? Promise.resolve(profileRef.current)
           : SpotifyApiService.getUserProfile(accessToken);
@@ -165,10 +134,10 @@ export default function Home() {
         const recentlyPlayedPromise = shouldRefreshRecent
           ? SpotifyApiService.getRecentlyPlayedRange(accessToken, {
               endMs: requestedEndMs,
-              maxPages: selectedRangeDays <= 7 ? 3 : 6,
-              startMs: selectedRange.start.getTime(),
+              maxPages: 2,
+              startMs: todayWindow.start.getTime(),
             })
-          : Promise.resolve({ items: cachedRangeItems });
+          : Promise.resolve({ items: cachedTodayItems });
 
         const [profile, currentlyPlaying, recentlyPlayed] = await Promise.all([
           profilePromise,
@@ -187,11 +156,10 @@ export default function Home() {
           currentlyPlaying,
           profile,
           recentlyPlayed: recentTracksRef.current,
-          selectedDay,
-          selectedRange,
+          todayWindow,
         });
 
-        setHistoryNotice(createHistoryNotice(analytics.filteredRecentlyPlayed, selectedDay));
+        setDataNotice(createTodayDataNotice(analytics.filteredRecentlyPlayed));
         setDashboard((currentDashboard) => ({
           ...analytics.localDashboard,
           reflection:
@@ -223,18 +191,15 @@ export default function Home() {
           return;
         }
 
-        setHistoryNotice(
-          "Spotify data for that range could not refresh just now, so this view is still showing your latest available snapshot.",
+        setDataNotice(
+          "Spotify data could not refresh just now, so this view is still showing your latest available sample.",
         );
         setAuthState("connected");
       } finally {
-        if (showDayLoading) {
-          setIsDayRefreshing(false);
-        }
         syncInFlightRef.current = false;
       }
     },
-    [selectedDay, selectedRange],
+    [todayWindow],
   );
 
   useEffect(() => {
@@ -287,11 +252,10 @@ export default function Home() {
       currentlyPlaying: currentlyPlayingRef.current,
       profile: profileRef.current,
       recentlyPlayed: recentTracksRef.current,
-      selectedDay,
-      selectedRange,
+      todayWindow,
     });
 
-    setHistoryNotice(createHistoryNotice(analytics.filteredRecentlyPlayed, selectedDay));
+    setDataNotice(createTodayDataNotice(analytics.filteredRecentlyPlayed));
     setDashboard((currentDashboard) => ({
       ...analytics.localDashboard,
       reflection:
@@ -299,13 +263,7 @@ export default function Home() {
           ? currentDashboard.reflection
           : analytics.localDashboard.reflection,
     }));
-
-    if (recentTracksRef.current.length > 0) {
-      void syncSpotify({ refreshReflection: true, showDayLoading: true });
-    } else {
-      setIsDayRefreshing(false);
-    }
-  }, [isConnected, selectedDay, selectedRange, syncSpotify]);
+  }, [isConnected, syncSpotify, todayWindow]);
 
   useEffect(() => {
     if (!isConnected) {
@@ -374,7 +332,7 @@ export default function Home() {
     lastReflectionAtRef.current = 0;
     lastReflectionSignatureRef.current = "";
     setDashboard(emptyDashboard);
-    setHistoryNotice(null);
+    setDataNotice(null);
     setReflectionNotice(null);
     setAuthState("disconnected");
     setErrorMessage("");
@@ -389,16 +347,6 @@ export default function Home() {
       setAuthState("error");
       setErrorMessage(getErrorMessage(error));
     }
-  }
-
-  function handleDaySelect(value: string) {
-    if (value === selectedDayKey) {
-      return;
-    }
-
-    setErrorMessage("");
-    setIsDayRefreshing(true);
-    setSelectedDayKey(value);
   }
 
   if (!isConnected) {
@@ -424,29 +372,22 @@ export default function Home() {
         profileName={dashboard.profile?.display_name ?? dashboard.profile?.id}
       />
 
-      <AnalyticsControls
-        dayOptions={dayOptions}
-        isBusy={isBusy}
-        onDaySelect={handleDaySelect}
-        selectedDayKey={selectedDay.dateKey}
-      />
+      <TodayOverview dashboard={dashboard} />
 
-      {isDayRefreshing && <LoadingStatus message={`Updating ${selectedDay.label} insights`} />}
       {reflectionNotice && <StatusBanner message={reflectionNotice.message} />}
-      {historyNotice && <StatusBanner message={historyNotice} tone="cool" />}
+      {dataNotice && <StatusBanner message={dataNotice} tone="cool" />}
 
       <section className="mt-6 grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
         <CurrentMoodCard dashboard={dashboard} />
         <NowPlayingCard dashboard={dashboard} isConnected={isConnected} isBusy={isBusy} />
       </section>
 
-      <section className="mt-4 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-        <MoodBreakdown dashboard={dashboard} rangeLabel={selectedDay.label} />
-        <WeeklyTrend dashboard={dashboard} rangeLabel={selectedRange.label} selectedDayKey={selectedDay.dateKey} />
+      <section className="mt-4">
+        <MoodBreakdown dashboard={dashboard} rangeLabel={todayWindow.label} />
       </section>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <AIReflection dashboard={dashboard} rangeLabel={selectedDay.label} />
+        <AIReflection dashboard={dashboard} rangeLabel={todayWindow.label} />
         <InterestingObservations observations={dashboard.observations} />
       </section>
     </main>
@@ -493,7 +434,7 @@ function ConnectionLanding({
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-[#aeb7c6] sm:text-lg">
               Connect your Spotify account to turn currently playing and recently played tracks
-              into mood patterns, weekly trends, and listening reflections.
+              into today&apos;s mood patterns and listening reflections.
             </p>
           </div>
 
@@ -542,7 +483,7 @@ function ConnectionLanding({
               <div className="mt-5 space-y-3 text-sm leading-6 text-[#c9d0dc]">
                 <p>Current listening mood</p>
                 <p>Now playing and recently played tracks</p>
-                <p>Weekly trends and reflection cards</p>
+                <p>Today&apos;s patterns and AI reflection</p>
               </div>
             </div>
           </div>
@@ -634,64 +575,46 @@ function StatusBanner({
   );
 }
 
-function LoadingStatus({ message }: { message: string }) {
-  return (
-    <div
-      aria-live="polite"
-      className="mt-4 flex items-center gap-3 rounded-[24px] border border-[#4ecdc4]/20 bg-[#4ecdc4]/10 px-4 py-3 text-sm font-medium text-[#c9f7f2]"
-    >
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#4ecdc4]/14 text-[#4ecdc4]">
-        <LoaderCircle className="animate-spin" size={18} />
-      </span>
-      <span>{message}</span>
-    </div>
-  );
-}
+function TodayOverview({ dashboard }: { dashboard: DashboardData }) {
+  const playCount = dashboard.recentTracks.length;
+  const artistCount = new Set(dashboard.recentTracks.map((track) => track.artist)).size;
+  const activeTrack = dashboard.nowPlaying.track;
 
-function AnalyticsControls({
-  dayOptions,
-  isBusy,
-  onDaySelect,
-  selectedDayKey,
-}: {
-  dayOptions: DaySelection[];
-  isBusy: boolean;
-  onDaySelect: (value: string) => void;
-  selectedDayKey: string;
-}) {
   return (
     <section className="mt-4 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)]">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-[#9da7b7]">Listening analysis</p>
-            <h2 className="mt-1 text-2xl font-semibold">Choose a day from the last 7 days</h2>
-          </div>
-          <p className="text-sm text-[#768092]">The rest of the dashboard follows this selection.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-[#9da7b7]">Listening analysis</p>
+          <h2 className="mt-1 text-3xl font-semibold">Today&apos;s listening mirror</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#9da7b7]">
+            Built from what Spotify returns right now: current playback and today&apos;s available
+            recent plays.
+          </p>
         </div>
 
-        <div className="-mx-1 overflow-x-auto px-1 pb-1 md:mx-0 md:overflow-visible md:px-0">
-          <div className="flex min-w-max gap-2 md:min-w-0 md:grid md:grid-cols-7">
-            {dayOptions.map((option) => (
-              <button
-                key={option.dateKey}
-                className={classNames(
-                  "min-h-[3.65rem] min-w-[5.25rem] rounded-[18px] border px-3 py-2 text-left transition md:min-w-0 md:w-full",
-                  selectedDayKey === option.dateKey
-                    ? "border-[#4ecdc4]/35 bg-[linear-gradient(180deg,rgba(78,205,196,0.18),rgba(78,205,196,0.08))] text-[#f7f8fb]"
-                    : "border-white/10 bg-[#0c0f15] text-[#9da7b7]",
-                )}
-                disabled={isBusy}
-                onClick={() => onDaySelect(option.dateKey)}
-                type="button"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">{option.shortLabel}</p>
-                <p className="mt-1 text-sm font-semibold">{option.label}</p>
-              </button>
-            ))}
-          </div>
+        <div className="grid grid-cols-3 gap-2 md:min-w-[22rem]">
+          <MiniStat label="Available plays" value={String(playCount)} />
+          <MiniStat label="Artists" value={String(artistCount)} />
+          <MiniStat label="Source" value={activeTrack ? "Live" : "Recent"} />
         </div>
       </div>
+
+      {playCount > 0 || activeTrack ? (
+        <div className="mt-4 rounded-[22px] border border-[#4ecdc4]/15 bg-[#4ecdc4]/8 px-4 py-3">
+          <p className="text-sm font-medium text-[#c9f7f2]">
+            {activeTrack
+              ? `"${activeTrack.name}" is anchoring today's view.`
+              : "Today's view is using your available recently played tracks."}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-[22px] border border-white/10 bg-[#0c0f15] px-4 py-3">
+          <p className="text-sm leading-6 text-[#9da7b7]">
+            Play something on Spotify and Music Mirror will start reflecting today&apos;s available
+            listening sample.
+          </p>
+        </div>
+      )}
     </section>
   );
 }
@@ -872,68 +795,9 @@ function MoodBreakdown({ dashboard, rangeLabel }: { dashboard: DashboardData; ra
         </div>
       ) : (
         <p className="mt-6 text-sm leading-6 text-[#9da7b7]">
-          No listening data is available for this day yet.
+          No listening data is available for today yet.
         </p>
       )}
-    </article>
-  );
-}
-
-function WeeklyTrend({
-  dashboard,
-  rangeLabel,
-  selectedDayKey,
-}: {
-  dashboard: DashboardData;
-  rangeLabel: string;
-  selectedDayKey: string;
-}) {
-  return (
-    <article className="min-w-0 rounded-[28px] border border-white/10 bg-[#151922]/90 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-[#9da7b7]">Listening Trend</p>
-          <h2 className="mt-1 text-2xl font-semibold">
-            {dashboard.recentTracks.length > 0 ? rangeLabel : "Waiting for history"}
-          </h2>
-        </div>
-        <MetricPill icon={ArrowUpRight} label="7-day view" />
-      </div>
-
-      <div className="mt-6 overflow-x-auto rounded-[24px] bg-[#0c0f15] px-2 py-4 sm:px-3">
-        <div
-          className="grid h-48 min-w-full grid-flow-col auto-cols-[minmax(2.35rem,1fr)] items-end gap-2 sm:h-56 sm:auto-cols-[minmax(2.75rem,1fr)]"
-          style={{ minWidth: `${Math.max(dashboard.weeklyTrend.length * 2.2, 100)}%` }}
-        >
-          {dashboard.weeklyTrend.map((item, index) => (
-            <div
-              key={`${item.day}-${index}`}
-              className="flex h-full min-w-0 flex-col justify-end gap-2"
-            >
-              <div className="flex min-h-0 flex-1 items-end justify-center">
-                <div
-                  className={classNames(
-                    "rounded-full transition-[height,width,background-color]",
-                    item.plays === 0
-                      ? item.dateKey === selectedDayKey
-                        ? "w-3 bg-[#4ecdc4]/45"
-                        : "w-2.5 bg-white/15"
-                      : "w-5 bg-[linear-gradient(180deg,#4ecdc4,#8ba5ff)] sm:w-6 md:w-full md:max-w-9",
-                    item.plays > 0 &&
-                      item.dateKey === selectedDayKey &&
-                      "bg-[linear-gradient(180deg,#ffcd56,#4ecdc4)]",
-                  )}
-                  style={{ height: item.height }}
-                />
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-semibold text-[#f7f8fb]">{item.day}</p>
-                <p className="truncate text-[10px] text-[#768092]">{item.plays} plays</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </article>
   );
 }
@@ -1134,103 +998,62 @@ function createReflectionSignature(input: {
   ].join("::");
 }
 
-function buildLastSevenDaysRange(): RangeSelection {
+function buildTodayWindow(): TodayWindow {
   const today = new Date();
   const end = endOfDay(today);
-  const start = startOfDay(addDays(today, -6));
+  const start = startOfDay(today);
 
   return {
     end,
-    includesToday: true,
-    key: `7d:${start.toISOString()}:${end.toISOString()}`,
-    label: "Last 7 days",
+    label: "Today",
     start,
   };
 }
 
-function createHistoryNotice(items: SpotifyRecentlyPlayedItem[], selectedDay: DaySelection) {
+function createTodayDataNotice(items: SpotifyRecentlyPlayedItem[]) {
   if (items.length === 0) {
-    return `No listening history was available for ${selectedDay.label} yet.`;
+    return "No Spotify plays were returned for today yet. Current playback will still appear when available.";
   }
 
-  const oldestItem = items[items.length - 1];
-  if (!oldestItem) {
-    return null;
+  if (items.length >= 50) {
+    return "Today is based on Spotify's available recent sample. Repeats count as play events, not unique songs.";
   }
 
-  const oldestMs = new Date(oldestItem.played_at).getTime();
-  if (oldestMs > selectedDay.start.getTime()) {
-    return `This reflection is based on the available Spotify history inside ${selectedDay.label}.`;
-  }
-
-  return null;
-}
-
-function buildDayOptions(range: RangeSelection): DaySelection[] {
-  const options: DaySelection[] = [];
-  const todayKey = toDateKey(new Date());
-  const cursor = startOfDay(range.start);
-
-  while (cursor.getTime() <= range.end.getTime()) {
-    const date = new Date(cursor);
-    const dateKey = toDateKey(date);
-    options.push({
-      dateKey,
-      end: endOfDay(date),
-      isToday: dateKey === todayKey,
-      label: getRelativeDayLabel(date),
-      shortLabel: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date),
-      start: startOfDay(date),
-    });
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return options.reverse();
-}
-
-function getSelectedDay(options: DaySelection[], selectedDayKey: string) {
-  return options.find((option) => option.dateKey === selectedDayKey) ?? options[0];
+  return "Today is built from Spotify's available recent plays, not a stored listening archive.";
 }
 
 function buildAnalyticsSnapshot({
   currentlyPlaying,
   profile,
   recentlyPlayed,
-  selectedDay,
-  selectedRange,
+  todayWindow,
 }: {
   currentlyPlaying: SpotifyCurrentlyPlaying | null;
   profile?: SpotifyUserProfile;
   recentlyPlayed: SpotifyRecentlyPlayedItem[];
-  selectedDay: DaySelection;
-  selectedRange: RangeSelection;
+  todayWindow: TodayWindow;
 }) {
   const filteredRecentlyPlayed = filterRecentlyPlayedItemsForRange(
     recentlyPlayed,
-    selectedDay.start.getTime(),
-    selectedDay.end.getTime(),
-  );
-  const trendRecentlyPlayed = filterRecentlyPlayedItemsForRange(
-    recentlyPlayed,
-    selectedRange.start.getTime(),
-    selectedRange.end.getTime(),
+    todayWindow.start.getTime(),
+    todayWindow.end.getTime(),
   );
   const snapshotForReflection = {
-    currentlyPlaying: selectedDay.isToday ? currentlyPlaying : null,
+    currentlyPlaying,
     profile,
-    rangeEnd: selectedDay.end,
-    rangeStart: selectedDay.start,
+    rangeEnd: todayWindow.end,
+    rangeStart: todayWindow.start,
     recentlyPlayed: filteredRecentlyPlayed,
-    trendRecentlyPlayed,
+    trendRecentlyPlayed: filteredRecentlyPlayed,
   };
 
   return {
     filteredRecentlyPlayed,
     localDashboard: createDashboardData({
       ...snapshotForReflection,
-      rangeEnd: selectedDay.end,
-      rangeStart: selectedDay.start,
-      trendRecentlyPlayed,
+      rangeEnd: todayWindow.end,
+      rangeStart: todayWindow.start,
+      trendRecentlyPlayed: filteredRecentlyPlayed,
     }),
     snapshotForReflection,
   };
@@ -1303,37 +1126,4 @@ function endOfDay(date: Date) {
   const next = new Date(date);
   next.setHours(23, 59, 59, 999);
   return next;
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function getRelativeDayLabel(date: Date) {
-  const today = startOfDay(new Date());
-  const target = startOfDay(date);
-  const diffDays = Math.round((today.getTime() - target.getTime()) / 86_400_000);
-
-  if (diffDays === 0) {
-    return "Today";
-  }
-
-  if (diffDays === 1) {
-    return "Yesterday";
-  }
-
-  if (diffDays === 2) {
-    return "2 days ago";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-  }).format(date);
-}
-
-function toDateKey(date: Date) {
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }

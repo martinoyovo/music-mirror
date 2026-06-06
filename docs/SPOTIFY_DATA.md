@@ -96,11 +96,11 @@ It can happen when:
 
 In other words, "50 plays" currently means "50 Spotify play events available to the app for that day."
 
-## Why Yesterday Or Earlier Can Be Empty
+## Why This Version Focuses On Today
 
-The current app asks Spotify for recent play history and then filters those returned items into day buckets.
+The current app asks Spotify for recent play history and filters returned items into today's local date window.
 
-If Spotify only returns items from today, then yesterday will show no data even if the user selected yesterday.
+If Spotify only returns items from today, Music Mirror can produce a useful "today so far" view. If the user wants yesterday, last week, or last month, the app would need its own stored history.
 
 This is expected with the current no-database architecture:
 
@@ -114,12 +114,12 @@ Music Mirror currently:
 
 1. Fetches currently playing.
 2. Fetches recently played items.
-3. Filters returned play history objects into the selected day.
+3. Filters returned play history objects into today's local date window.
 4. Counts each play history object as one play.
 5. Sends the available sample to the reflection pipeline.
-6. Shows a friendly no-data message when the selected day has no returned play history.
+6. Shows a friendly no-data message when today has no returned play history.
 
-This is useful for a demo, but it is not reliable enough for a true weekly or monthly listening history product.
+This is useful for a daily live demo, but it is not reliable enough for a true weekly or monthly listening history product.
 
 ## What We Cannot Claim Yet
 
@@ -135,8 +135,8 @@ Safer language:
 
 - "Based on available Spotify history"
 - "Recent Spotify sample"
-- "Available plays for this selected day"
-- "No returned listening history for this day"
+- "Available plays today"
+- "No returned listening history for today"
 
 Avoid:
 
