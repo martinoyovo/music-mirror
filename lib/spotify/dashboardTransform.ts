@@ -330,8 +330,8 @@ function createReflection(
   if (recentTracks.length === 0 && !nowPlayingTrack) {
     return {
       body: "This selection does not have enough listening history to generate a reflection yet.",
-      headline: "No listening data for this selection",
-      summary: "Try another day in the last 7 days to compare patterns.",
+      headline: "No listening data for today",
+      summary: "Play something on Spotify to start building today's listening mirror.",
     };
   }
 
@@ -354,7 +354,7 @@ function createObservations(
   if (recentTracks.length === 0) {
     return [
       {
-        detail: "There were no recently played tracks available for this selected day.",
+        detail: "There were no recently played tracks available for today yet.",
         icon: "sunrise",
         positive: true,
         title: "No observations yet",
@@ -465,6 +465,10 @@ function getTrendBucketIndex(
 
 function formatRangeLabel(rangeStart: Date, rangeEnd: Date) {
   const diffDays = Math.max(1, Math.round((endOfDay(rangeEnd).getTime() - startOfDay(rangeStart).getTime()) / 86_400_000) + 1);
+
+  if (diffDays === 1) {
+    return "today";
+  }
 
   if (diffDays <= 7) {
     return "range";
