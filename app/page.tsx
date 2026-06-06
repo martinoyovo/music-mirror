@@ -10,6 +10,7 @@ import {
   Clock3,
   Headphones,
   HeartPulse,
+  LoaderCircle,
   LogOut,
   Moon,
   Pause,
@@ -73,6 +74,7 @@ export default function Home() {
   const [dashboard, setDashboard] = useState<DashboardData>(emptyDashboard);
   const [errorMessage, setErrorMessage] = useState("");
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const [isDayRefreshing, setIsDayRefreshing] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
   const [selectedDayKey, setSelectedDayKey] = useState(() => toDateKey(new Date()));
   const [reflectionNotice, setReflectionNotice] = useState<ReflectionNotice | null>(null);
@@ -102,13 +104,22 @@ export default function Home() {
     async ({
       forceFullSync = false,
       refreshReflection = false,
+      showDayLoading = false,
       showLoading = false,
     }: {
       forceFullSync?: boolean;
       refreshReflection?: boolean;
+      showDayLoading?: boolean;
       showLoading?: boolean;
     } = {}) => {
+      if (showDayLoading) {
+        setIsDayRefreshing(true);
+      }
+
       if (syncInFlightRef.current) {
+        if (showDayLoading) {
+          setIsDayRefreshing(false);
+        }
         return;
       }
 
@@ -217,6 +228,9 @@ export default function Home() {
         );
         setAuthState("connected");
       } finally {
+        if (showDayLoading) {
+          setIsDayRefreshing(false);
+        }
         syncInFlightRef.current = false;
       }
     },
@@ -287,7 +301,9 @@ export default function Home() {
     }));
 
     if (recentTracksRef.current.length > 0) {
-      void syncSpotify({ refreshReflection: true });
+      void syncSpotify({ refreshReflection: true, showDayLoading: true });
+    } else {
+      setIsDayRefreshing(false);
     }
   }, [isConnected, selectedDay, selectedRange, syncSpotify]);
 
@@ -375,6 +391,16 @@ export default function Home() {
     }
   }
 
+  function handleDaySelect(value: string) {
+    if (value === selectedDayKey) {
+      return;
+    }
+
+    setErrorMessage("");
+    setIsDayRefreshing(true);
+    setSelectedDayKey(value);
+  }
+
   if (!isConnected) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 pb-8 pt-5 text-white sm:px-6 lg:px-8">
@@ -401,10 +427,11 @@ export default function Home() {
       <AnalyticsControls
         dayOptions={dayOptions}
         isBusy={isBusy}
-        onDaySelect={setSelectedDayKey}
+        onDaySelect={handleDaySelect}
         selectedDayKey={selectedDay.dateKey}
       />
 
+      {isDayRefreshing && <LoadingStatus message={`Updating ${selectedDay.label} insights`} />}
       {reflectionNotice && <StatusBanner message={reflectionNotice.message} />}
       {historyNotice && <StatusBanner message={historyNotice} tone="cool" />}
 
@@ -603,6 +630,20 @@ function StatusBanner({
       )}
     >
       {message}
+    </div>
+  );
+}
+
+function LoadingStatus({ message }: { message: string }) {
+  return (
+    <div
+      aria-live="polite"
+      className="mt-4 flex items-center gap-3 rounded-[24px] border border-[#4ecdc4]/20 bg-[#4ecdc4]/10 px-4 py-3 text-sm font-medium text-[#c9f7f2]"
+    >
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#4ecdc4]/14 text-[#4ecdc4]">
+        <LoaderCircle className="animate-spin" size={18} />
+      </span>
+      <span>{message}</span>
     </div>
   );
 }
