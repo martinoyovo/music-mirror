@@ -51,6 +51,23 @@ export type SpotifyRecentlyPlayedResponse = {
   next?: string | null;
 };
 
+export type SpotifyAudioAnalysisSection = {
+  confidence: number;
+  duration: number;
+  loudness: number;
+  start: number;
+  tempo: number;
+};
+
+export type SpotifyTrackAudioAnalysis = {
+  sections: SpotifyAudioAnalysisSection[];
+  track: {
+    duration: number;
+    loudness: number;
+    tempo: number;
+  };
+};
+
 export type SpotifyToken = {
   accessToken: string;
   expiresAt: number;

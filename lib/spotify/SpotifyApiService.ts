@@ -1,4 +1,5 @@
 import type {
+  SpotifyTrackAudioAnalysis,
   SpotifyCurrentlyPlaying,
   SpotifyRecentlyPlayedItem,
   SpotifyRecentlyPlayedResponse,
@@ -24,6 +25,14 @@ export class SpotifyApiService {
     return this.request<SpotifyRecentlyPlayedResponse>(
       `/me/player/recently-played?limit=${limit}`,
       accessToken,
+    );
+  }
+
+  static async getTrackAudioAnalysis(accessToken: string, trackId: string) {
+    return this.request<SpotifyTrackAudioAnalysis | null>(
+      `/audio-analysis/${trackId}`,
+      accessToken,
+      { allowStatuses: [403, 404] },
     );
   }
 
@@ -96,7 +105,7 @@ export class SpotifyApiService {
   private static async request<T>(
     path: string,
     accessToken: string,
-    options?: { allowEmpty?: boolean },
+    options?: { allowEmpty?: boolean; allowStatuses?: number[] },
   ) {
     const response = await fetch(`${this.baseUrl}${path}`, {
       cache: "no-store",
@@ -106,6 +115,10 @@ export class SpotifyApiService {
     });
 
     if (options?.allowEmpty && response.status === 204) {
+      return null as T;
+    }
+
+    if (options?.allowStatuses?.includes(response.status)) {
       return null as T;
     }
 

@@ -18,12 +18,17 @@ import {
   Sunrise,
   Waves,
 } from "lucide-react";
+import {
+  createEnergyArcData,
+  type EnergyArcStatus,
+} from "@/lib/spotify/energyArc";
 import { SpotifyApiService } from "@/lib/spotify/SpotifyApiService";
 import { SpotifyAuthService } from "@/lib/spotify/SpotifyAuthService";
 import { createDashboardData } from "@/lib/spotify/dashboardTransform";
 import type {
   DashboardData,
   DashboardObservation,
+  SpotifyTrackAudioAnalysis,
   SpotifyCurrentlyPlaying,
   SpotifyRecentlyPlayedItem,
   SpotifyUserProfile,
@@ -41,6 +46,11 @@ type AuthState = "checking" | "disconnected" | "loading" | "connected" | "error"
 type ReflectionNotice = {
   code: string;
   message: string;
+};
+type TrackAnalysisState = {
+  analysis: SpotifyTrackAudioAnalysis | null;
+  status: EnergyArcStatus;
+  trackId?: string;
 };
 type TodayWindow = {
   end: Date;
@@ -65,6 +75,10 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isConfigured, setIsConfigured] = useState(false);
   const [reflectionNotice, setReflectionNotice] = useState<ReflectionNotice | null>(null);
+  const [trackAnalysis, setTrackAnalysis] = useState<TrackAnalysisState>({
+    analysis: null,
+    status: "idle",
+  });
   const authStateRef = useRef<AuthState>("checking");
   const currentlyPlayingRef = useRef<SpotifyCurrentlyPlaying | null>(null);
   const profileRef = useRef<SpotifyUserProfile | undefined>(undefined);
@@ -77,6 +91,21 @@ export default function Home() {
   const isBusy = authState === "checking" || authState === "loading";
   const isConnected = authState === "connected";
   const todayWindow = useMemo(() => buildTodayWindow(), []);
+  const energyArc = useMemo(
+    () =>
+      createEnergyArcData({
+        analysis:
+          trackAnalysis.trackId === dashboard.nowPlaying.track?.id ? trackAnalysis.analysis : null,
+        isPlaying: dashboard.nowPlaying.isPlaying,
+        status:
+          trackAnalysis.trackId === dashboard.nowPlaying.track?.id
+            ? trackAnalysis.status
+            : "idle",
+        tempoLabel: dashboard.nowPlaying.tempo,
+        track: dashboard.nowPlaying.track,
+      }),
+    [dashboard.nowPlaying.isPlaying, dashboard.nowPlaying.tempo, dashboard.nowPlaying.track, trackAnalysis],
+  );
 
   useEffect(() => {
     authStateRef.current = authState;
@@ -313,6 +342,67 @@ export default function Home() {
     };
   }, [activeNowPlayingTrackId, dashboard.nowPlaying.isPlaying]);
 
+  useEffect(() => {
+    const activeTrackId = dashboard.nowPlaying.track?.id;
+
+    if (!activeTrackId) {
+      setTrackAnalysis({ analysis: null, status: "idle" });
+      return;
+    }
+
+    const trackId = activeTrackId;
+
+    if (trackAnalysis.trackId === trackId && trackAnalysis.status !== "idle") {
+      return;
+    }
+
+    let isCancelled = false;
+    setTrackAnalysis({ analysis: null, status: "loading", trackId });
+
+    async function loadTrackAnalysis() {
+      try {
+        const accessToken = await SpotifyAuthService.getValidToken();
+
+        if (!accessToken) {
+          if (!isCancelled) {
+            setTrackAnalysis({
+              analysis: null,
+              status: "unavailable",
+              trackId,
+            });
+          }
+          return;
+        }
+
+        const analysis = await SpotifyApiService.getTrackAudioAnalysis(accessToken, trackId);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setTrackAnalysis({
+          analysis,
+          status: analysis?.sections?.length ? "ready" : "unavailable",
+          trackId,
+        });
+      } catch {
+        if (!isCancelled) {
+          setTrackAnalysis({
+            analysis: null,
+            status: "unavailable",
+            trackId,
+          });
+        }
+      }
+    }
+
+    void loadTrackAnalysis();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [dashboard.nowPlaying.track?.id, trackAnalysis.status, trackAnalysis.trackId]);
+
   async function handleConnect() {
     setErrorMessage("");
 
@@ -381,6 +471,12 @@ export default function Home() {
         <CurrentMoodCard dashboard={dashboard} />
         <NowPlayingCard dashboard={dashboard} isConnected={isConnected} isBusy={isBusy} />
       </section>
+
+      {dashboard.nowPlaying.track && (
+        <section className="mt-4">
+          <LiveEnergyArcCard energyArc={energyArc} />
+        </section>
+      )}
 
       <section className="mt-4">
         <MoodBreakdown dashboard={dashboard} rangeLabel={todayWindow.label} />
@@ -797,6 +893,69 @@ function MoodBreakdown({ dashboard, rangeLabel }: { dashboard: DashboardData; ra
         <p className="mt-6 text-sm leading-6 text-[#9da7b7]">
           No listening data is available for today yet.
         </p>
+      )}
+    </article>
+  );
+}
+
+function LiveEnergyArcCard({
+  energyArc,
+}: {
+  energyArc: ReturnType<typeof createEnergyArcData>;
+}) {
+  return (
+    <article className="motion-card min-w-0 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-[#9da7b7]">Live Energy Arc</p>
+          <h2 className="mt-1 text-2xl font-semibold">{energyArc.title}</h2>
+        </div>
+        <span className="rounded-full bg-white/[0.07] px-3 py-1 text-xs font-semibold text-[#9da7b7]">
+          {energyArc.sourceLabel}
+        </span>
+      </div>
+
+      {energyArc.status === "loading" ? (
+        <div className="mt-5 flex items-center gap-3 rounded-[22px] border border-white/8 bg-[#0d1017] px-4 py-4">
+          <RefreshCw size={18} className="animate-spin text-[#4ecdc4]" />
+          <div>
+            <p className="text-sm font-semibold text-[#f7f8fb]">{energyArc.currentLabel}</p>
+            <p className="text-sm text-[#9da7b7]">{energyArc.summary}</p>
+          </div>
+        </div>
+      ) : energyArc.status === "unavailable" ? (
+        <div className="mt-5 rounded-[22px] border border-white/8 bg-[#0d1017] px-4 py-4">
+          <p className="text-sm font-semibold text-[#f7f8fb]">{energyArc.nextLabel}</p>
+          <p className="mt-1 text-sm leading-6 text-[#9da7b7]">{energyArc.summary}</p>
+        </div>
+      ) : (
+        <>
+          <div className="mt-5 rounded-[24px] border border-white/8 bg-[#0d1017] p-4">
+            <div className="flex h-36 items-end gap-2 sm:gap-3">
+              {energyArc.points.map((point) => (
+                <div key={point.id} className="flex min-w-0 flex-1 items-end">
+                  <div
+                    className={classNames(
+                      "w-full rounded-full bg-[linear-gradient(180deg,#ffcd56_0%,#7de2da_54%,#8ba5ff_100%)] transition-all duration-500",
+                      point.isActive
+                        ? "shadow-[0_0_32px_rgba(125,226,218,0.26)] ring-1 ring-[#7de2da]/50"
+                        : "opacity-72",
+                    )}
+                    style={{ height: `${point.heightPercent}%` }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <MiniStat label="Current phase" value={energyArc.currentLabel} />
+            <MiniStat label="Next shift" value={energyArc.nextLabel} />
+            <MiniStat label="Tempo" value={energyArc.tempoLabel} />
+          </div>
+
+          <p className="mt-4 text-sm leading-6 text-[#9da7b7]">{energyArc.summary}</p>
+        </>
       )}
     </article>
   );
