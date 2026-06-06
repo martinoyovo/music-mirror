@@ -19,7 +19,7 @@ import {
   Sunrise,
   Waves,
 } from "lucide-react";
-import { SpotifyApiService } from "@/lib/spotify/SpotifyApiService";
+import { SpotifyApiError, SpotifyApiService } from "@/lib/spotify/SpotifyApiService";
 import { SpotifyAuthService } from "@/lib/spotify/SpotifyAuthService";
 import { createDashboardData } from "@/lib/spotify/dashboardTransform";
 import type {
@@ -37,6 +37,8 @@ const emptyDashboard = createDashboardData({
 const NOW_PLAYING_POLL_MS = 10_000;
 const RECENTLY_PLAYED_POLL_MS = 30_000;
 const AI_REFRESH_MS = 90_000;
+const SPOTIFY_RATE_LIMIT_KEY = "musicMirror.spotifyRateLimitUntil";
+const DEFAULT_SPOTIFY_BACKOFF_MS = 60_000;
 
 type AuthState = "checking" | "disconnected" | "loading" | "connected" | "error";
 type ReflectionNotice = {
@@ -74,6 +76,7 @@ export default function Home() {
   const lastRecentSyncAtRef = useRef(0);
   const lastReflectionAtRef = useRef(0);
   const lastReflectionSignatureRef = useRef("");
+  const spotifyRateLimitUntilRef = useRef(getStoredSpotifyRateLimitUntil());
 
   const isBusy = authState === "checking" || authState === "loading";
   const isConnected = authState === "connected";
@@ -100,6 +103,14 @@ export default function Home() {
       syncInFlightRef.current = true;
 
       try {
+        const rateLimitUntil = spotifyRateLimitUntilRef.current;
+        if (Date.now() < rateLimitUntil) {
+          throw new SpotifyApiError(
+            429,
+            Math.max(1, Math.ceil((rateLimitUntil - Date.now()) / 1000)),
+          );
+        }
+
         const accessToken = await SpotifyAuthService.getValidToken();
         if (!accessToken) {
           profileRef.current = undefined;
@@ -146,6 +157,9 @@ export default function Home() {
           recentlyPlayedPromise,
         ]);
 
+        spotifyRateLimitUntilRef.current = 0;
+        storeSpotifyRateLimitUntil(0);
+
         currentlyPlayingRef.current = currentlyPlaying;
         profileRef.current = profile;
         if (shouldRefreshRecent) {
@@ -186,6 +200,23 @@ export default function Home() {
         setDashboard(reflectionResult.dashboard);
         setReflectionNotice(reflectionResult.notice);
       } catch (error) {
+        if (isSpotifyRateLimitError(error)) {
+          const backoffMs = getSpotifyBackoffMs(error);
+          const cooldownUntil = Date.now() + backoffMs;
+          spotifyRateLimitUntilRef.current = cooldownUntil;
+          storeSpotifyRateLimitUntil(cooldownUntil);
+
+          if (showLoading || authStateRef.current !== "connected") {
+            setAuthState("error");
+            setErrorMessage(getErrorMessage(error));
+            return;
+          }
+
+          setDataNotice(getSpotifyRateLimitNotice(backoffMs));
+          setAuthState("connected");
+          return;
+        }
+
         if (showLoading || authStateRef.current !== "connected") {
           setAuthState("error");
           setErrorMessage(getErrorMessage(error));
@@ -954,6 +985,11 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 }
 
 function getErrorMessage(error: unknown) {
+  if (isSpotifyRateLimitError(error)) {
+    const backoffMs = getSpotifyBackoffMs(error);
+    return `Spotify asked us to pause for about ${formatBackoffLabel(backoffMs)} before trying again.`;
+  }
+
   if (error instanceof Error) {
     return error.message;
   }
@@ -1123,6 +1159,66 @@ function formatProgressDuration(milliseconds: number) {
   const minutes = Math.floor(milliseconds / 60_000);
   const seconds = Math.floor((milliseconds % 60_000) / 1000);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function isSpotifyRateLimitError(error: unknown): error is SpotifyApiError {
+  return error instanceof SpotifyApiError && error.status === 429;
+}
+
+function getSpotifyBackoffMs(error: SpotifyApiError) {
+  if (error.retryAfterSeconds && error.retryAfterSeconds > 0) {
+    return error.retryAfterSeconds * 1000;
+  }
+
+  return DEFAULT_SPOTIFY_BACKOFF_MS;
+}
+
+function formatBackoffLabel(milliseconds: number) {
+  const minutes = Math.floor(milliseconds / 60_000);
+  const seconds = Math.max(1, Math.round((milliseconds % 60_000) / 1000));
+
+  if (minutes <= 0) {
+    return `${seconds}s`;
+  }
+
+  if (seconds === 0) {
+    return `${minutes}m`;
+  }
+
+  return `${minutes}m ${seconds}s`;
+}
+
+function getSpotifyRateLimitNotice(milliseconds: number) {
+  return `Spotify rate limited refreshes, so Music Mirror will pause updates for about ${formatBackoffLabel(milliseconds)}.`;
+}
+
+function getStoredSpotifyRateLimitUntil() {
+  if (typeof window === "undefined") {
+    return 0;
+  }
+
+  const rawValue = window.sessionStorage.getItem(SPOTIFY_RATE_LIMIT_KEY);
+  const parsedValue = rawValue ? Number(rawValue) : 0;
+
+  if (!Number.isFinite(parsedValue) || parsedValue <= Date.now()) {
+    window.sessionStorage.removeItem(SPOTIFY_RATE_LIMIT_KEY);
+    return 0;
+  }
+
+  return parsedValue;
+}
+
+function storeSpotifyRateLimitUntil(timestamp: number) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (timestamp <= Date.now()) {
+    window.sessionStorage.removeItem(SPOTIFY_RATE_LIMIT_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(SPOTIFY_RATE_LIMIT_KEY, String(timestamp));
 }
 
 function startOfDay(date: Date) {
