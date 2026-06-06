@@ -863,26 +863,26 @@ function InterestingObservations({ observations }: { observations: DashboardObse
           const Icon = observationIcons[item.icon];
           return (
             <div key={item.title} className="rounded-[22px] bg-white/[0.055] p-4">
-              <div className="flex gap-3">
+              <div className="flex gap-3 sm:gap-4">
                 <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/8 text-[#e9edf5]">
                   <Icon size={20} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] sm:items-start sm:gap-3">
-                    <h3 className="min-w-0 text-sm font-semibold text-[#f7f8fb]">{item.title}</h3>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="min-w-0 text-base font-semibold leading-snug text-[#f7f8fb]">
+                      {item.title}
+                    </h3>
                     <span
                       className={classNames(
-                        "flex min-w-0 items-start gap-1 text-sm font-semibold leading-5 sm:justify-self-end sm:text-right",
+                        "flex shrink-0 items-center gap-1 rounded-full bg-white/[0.055] px-2.5 py-1 text-sm font-semibold leading-none",
                         item.positive ? "text-[#c7f36c]" : "text-[#ff9d86]",
                       )}
                     >
-                      <span className="mt-0.5 shrink-0">
-                        {item.positive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                      </span>
-                      <span className="min-w-0 break-words">{item.trend}</span>
+                      {item.positive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                      <span>{item.trend}</span>
                     </span>
                   </div>
-                  <p className="mt-2 text-sm leading-5 text-[#aeb7c6]">{item.detail}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#aeb7c6]">{item.detail}</p>
                 </div>
               </div>
             </div>
