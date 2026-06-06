@@ -420,11 +420,15 @@ function createTrendData(
   return buckets.map((bucket, index) => {
     const dominantMood =
       [...moodMaps[index].entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Quiet";
+    const height =
+      bucket.plays === 0
+        ? "0.35rem"
+        : `${Math.max(14, Math.round((bucket.plays / maxCount) * 86))}%`;
 
     return {
       day: bucket.label,
       dateKey: bucket.dateKey,
-      height: `${Math.max(20, Math.round((bucket.plays / maxCount) * 86))}%`,
+      height,
       mood: String(dominantMood).slice(0, 5),
       plays: bucket.plays,
     };
