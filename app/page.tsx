@@ -439,9 +439,9 @@ function ConnectionLanding({
           </div>
 
           <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_0.78fr]">
-            <div className="min-w-0 rounded-[28px] border border-white/10 bg-[#151922]/90 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.32)]">
+            <div className="motion-card min-w-0 rounded-[28px] border border-white/10 bg-[#151922]/90 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.32)]">
               <button
-                className="flex w-full items-center justify-between gap-4 rounded-[24px] bg-[#f7f8fb] px-5 py-5 text-left text-[#08090d] shadow-[0_18px_55px_rgba(247,248,251,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="motion-action flex w-full items-center justify-between gap-4 rounded-[24px] bg-[#f7f8fb] px-5 py-5 text-left text-[#08090d] shadow-[0_18px_55px_rgba(247,248,251,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!isConfigured || isBusy}
                 onClick={onConnect}
                 type="button"
@@ -469,7 +469,7 @@ function ConnectionLanding({
               )}
             </div>
 
-            <div className="min-w-0 rounded-[28px] border border-[#4ecdc4]/20 bg-[#101b1f]/90 p-5">
+            <div className="motion-card min-w-0 rounded-[28px] border border-[#4ecdc4]/20 bg-[#101b1f]/90 p-5">
               <div className="flex items-center gap-3">
                 <span className="grid size-11 place-items-center rounded-2xl bg-[#4ecdc4]/14 text-[#4ecdc4]">
                   <HeartPulse size={22} />
@@ -564,7 +564,7 @@ function StatusBanner({
   return (
     <div
       className={classNames(
-        "mt-5 break-words rounded-[24px] px-4 py-3 text-sm leading-6",
+        "motion-card mt-5 break-words rounded-[24px] px-4 py-3 text-sm leading-6",
         tone === "warm"
           ? "border border-[#ffcd56]/20 bg-[#ffcd56]/10 text-[#ffe7a3]"
           : "border border-[#4ecdc4]/20 bg-[#4ecdc4]/10 text-[#c9f7f2]",
@@ -581,7 +581,7 @@ function TodayOverview({ dashboard }: { dashboard: DashboardData }) {
   const activeTrack = dashboard.nowPlaying.track;
 
   return (
-    <section className="mt-4 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)]">
+    <section className="motion-card mt-4 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)]">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-medium text-[#9da7b7]">Listening analysis</p>
@@ -624,7 +624,7 @@ function CurrentMoodCard({ dashboard }: { dashboard: DashboardData }) {
     dashboard.recentTracks.length > 0 || Boolean(dashboard.nowPlaying.track);
 
   return (
-    <article className="min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-[#151922]/90 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.32)]">
+    <article className="motion-card min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-[#151922]/90 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.32)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-[#9da7b7]">Current Listening Mood</p>
@@ -698,7 +698,7 @@ function NowPlayingCard({
   const hasTrack = Boolean(track);
 
   return (
-    <article className="min-w-0 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.28)]">
+    <article className="motion-card min-w-0 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.28)]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-[#9da7b7]">Now Playing</p>
         <span
@@ -767,7 +767,7 @@ function MoodBreakdown({ dashboard, rangeLabel }: { dashboard: DashboardData; ra
     dashboard.recentTracks.length > 0 || Boolean(dashboard.nowPlaying.track);
 
   return (
-    <article className="min-w-0 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-5">
+    <article className="motion-card min-w-0 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-[#9da7b7]">Mood Breakdown</p>
@@ -804,7 +804,7 @@ function MoodBreakdown({ dashboard, rangeLabel }: { dashboard: DashboardData; ra
 
 function AIReflection({ dashboard, rangeLabel }: { dashboard: DashboardData; rangeLabel: string }) {
   return (
-    <article className="min-w-0 rounded-[28px] border border-[#4ecdc4]/20 bg-[#101b1f]/90 p-5">
+    <article className="motion-card min-w-0 rounded-[28px] border border-[#4ecdc4]/20 bg-[#101b1f]/90 p-5">
       <div className="flex items-center gap-3">
         <span className="grid size-11 place-items-center rounded-2xl bg-[#4ecdc4]/14 text-[#4ecdc4]">
           <Brain size={23} />
@@ -849,7 +849,7 @@ function renderReflectionText(text: string, variant: "hero" | "summary") {
 
 function InterestingObservations({ observations }: { observations: DashboardObservation[] }) {
   return (
-    <article className="min-w-0 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-5">
+    <article className="motion-card min-w-0 rounded-[28px] border border-white/10 bg-[#11141c]/90 p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-[#9da7b7]">Interesting Observations</p>
@@ -862,7 +862,7 @@ function InterestingObservations({ observations }: { observations: DashboardObse
         {observations.map((item) => {
           const Icon = observationIcons[item.icon];
           return (
-            <div key={item.title} className="rounded-[22px] bg-white/[0.055] p-4">
+            <div key={item.title} className="motion-list-item rounded-[22px] bg-white/[0.055] p-4">
               <div className="flex gap-3 sm:gap-4">
                 <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/8 text-[#e9edf5]">
                   <Icon size={20} />
@@ -909,7 +909,7 @@ function IconButton({
   return (
     <button
       aria-label={label}
-      className="grid size-10 place-items-center rounded-full border border-white/10 bg-white/[0.07] text-[#e9edf5] disabled:cursor-not-allowed disabled:opacity-50"
+      className="motion-action grid size-10 place-items-center rounded-full border border-white/10 bg-white/[0.07] text-[#e9edf5] disabled:cursor-not-allowed disabled:opacity-50"
       disabled={disabled}
       onClick={onClick}
       title={title}
