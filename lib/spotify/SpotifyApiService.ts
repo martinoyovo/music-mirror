@@ -5,6 +5,18 @@ import type {
   SpotifyUserProfile,
 } from "./types";
 
+export class SpotifyApiError extends Error {
+  retryAfterSeconds?: number;
+  status: number;
+
+  constructor(status: number, retryAfterSeconds?: number) {
+    super(`Spotify request failed with ${status}.`);
+    this.name = "SpotifyApiError";
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.status = status;
+  }
+}
+
 export class SpotifyApiService {
   private static baseUrl = "https://api.spotify.com/v1";
 
@@ -114,7 +126,12 @@ export class SpotifyApiService {
     }
 
     if (!response.ok) {
-      throw new Error(`Spotify request failed with ${response.status}.`);
+      const retryAfterHeader = response.headers.get("retry-after");
+      const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+      throw new SpotifyApiError(
+        response.status,
+        Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
+      );
     }
 
     return (await response.json()) as T;
