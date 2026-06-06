@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { track } from "@vercel/analytics";
 import {
   Activity,
   ArrowDownRight,
@@ -213,7 +214,12 @@ export default function Home() {
       setIsConfigured(SpotifyAuthService.isConfigured());
 
       try {
-        await SpotifyAuthService.completeRedirectIfNeeded();
+        const redirectToken = await SpotifyAuthService.completeRedirectIfNeeded();
+        if (redirectToken && !isCancelled) {
+          track("spotify_connected", {
+            scopeCount: redirectToken.scope.split(" ").filter(Boolean).length,
+          });
+        }
 
         const accessToken = await SpotifyAuthService.getValidToken();
         if (!accessToken) {
@@ -317,6 +323,7 @@ export default function Home() {
     setErrorMessage("");
 
     try {
+      track("spotify_connect_clicked");
       await SpotifyAuthService.connect();
     } catch (error) {
       setAuthState("error");
@@ -325,6 +332,7 @@ export default function Home() {
   }
 
   function handleDisconnect() {
+    track("spotify_disconnect_clicked");
     SpotifyAuthService.disconnect();
     profileRef.current = undefined;
     recentTracksRef.current = [];
@@ -342,6 +350,7 @@ export default function Home() {
     setErrorMessage("");
 
     try {
+      track("dashboard_refreshed");
       await syncSpotify({ forceFullSync: true, refreshReflection: true, showLoading: true });
     } catch (error) {
       setAuthState("error");
