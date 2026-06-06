@@ -299,12 +299,22 @@ export class SpotifyAuthService {
       }
 
       if (
+        isCurrentHostLocal &&
         (parsedRedirectUri.origin === currentOrigin || isLocalhost) &&
         (parsedRedirectUri.pathname === "/" ||
           parsedRedirectUri.pathname === "" ||
           parsedRedirectUri.pathname === "/callback")
       ) {
         return `${this.getLocalLoopbackOrigin(parsedRedirectUri)}/callback`;
+      }
+
+      if (
+        parsedRedirectUri.origin === currentOrigin &&
+        (parsedRedirectUri.pathname === "/" ||
+          parsedRedirectUri.pathname === "" ||
+          parsedRedirectUri.pathname === "/callback")
+      ) {
+        return `${currentOrigin}/callback`;
       }
     } catch {
       return redirectUri;
