@@ -1,5 +1,4 @@
 import type {
-  SpotifyTrackAudioAnalysis,
   SpotifyCurrentlyPlaying,
   SpotifyRecentlyPlayedItem,
   SpotifyRecentlyPlayedResponse,
@@ -25,14 +24,6 @@ export class SpotifyApiService {
     return this.request<SpotifyRecentlyPlayedResponse>(
       `/me/player/recently-played?limit=${limit}`,
       accessToken,
-    );
-  }
-
-  static async getTrackAudioAnalysis(accessToken: string, trackId: string) {
-    return this.request<SpotifyTrackAudioAnalysis | null>(
-      `/audio-analysis/${trackId}`,
-      accessToken,
-      { allowStatuses: [403, 404] },
     );
   }
 
