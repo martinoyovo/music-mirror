@@ -859,30 +859,38 @@ function WeeklyTrend({
         <MetricPill icon={ArrowUpRight} label="7-day view" />
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-[24px] bg-[#0c0f15] px-3 py-4">
+      <div className="mt-6 overflow-x-auto rounded-[24px] bg-[#0c0f15] px-2 py-4 sm:px-3">
         <div
-          className="grid h-56 min-w-full grid-flow-col auto-cols-[minmax(2rem,1fr)] items-end gap-2"
+          className="grid h-48 min-w-full grid-flow-col auto-cols-[minmax(2.35rem,1fr)] items-end gap-2 sm:h-56 sm:auto-cols-[minmax(2.75rem,1fr)]"
           style={{ minWidth: `${Math.max(dashboard.weeklyTrend.length * 2.2, 100)}%` }}
         >
-        {dashboard.weeklyTrend.map((item, index) => (
-          <div key={`${item.day}-${index}`} className="flex h-full min-w-0 flex-col justify-end gap-2">
-            <div className="flex min-h-0 flex-1 items-end">
-              <div
-                className={classNames(
-                  "w-full rounded-full",
-                  item.dateKey === selectedDayKey
-                    ? "bg-[linear-gradient(180deg,#ffcd56,#4ecdc4)]"
-                    : "bg-[linear-gradient(180deg,#4ecdc4,#8ba5ff)]",
-                )}
-                style={{ height: item.height }}
-              />
+          {dashboard.weeklyTrend.map((item, index) => (
+            <div
+              key={`${item.day}-${index}`}
+              className="flex h-full min-w-0 flex-col justify-end gap-2"
+            >
+              <div className="flex min-h-0 flex-1 items-end justify-center">
+                <div
+                  className={classNames(
+                    "rounded-full transition-[height,width,background-color]",
+                    item.plays === 0
+                      ? item.dateKey === selectedDayKey
+                        ? "w-3 bg-[#4ecdc4]/45"
+                        : "w-2.5 bg-white/15"
+                      : "w-5 bg-[linear-gradient(180deg,#4ecdc4,#8ba5ff)] sm:w-6 md:w-full md:max-w-9",
+                    item.plays > 0 &&
+                      item.dateKey === selectedDayKey &&
+                      "bg-[linear-gradient(180deg,#ffcd56,#4ecdc4)]",
+                  )}
+                  style={{ height: item.height }}
+                />
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-[#f7f8fb]">{item.day}</p>
+                <p className="truncate text-[10px] text-[#768092]">{item.plays} plays</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-xs font-semibold text-[#f7f8fb]">{item.day}</p>
-              <p className="truncate text-[10px] text-[#768092]">{item.plays} plays</p>
-            </div>
-          </div>
-        ))}
+          ))}
         </div>
       </div>
     </article>
